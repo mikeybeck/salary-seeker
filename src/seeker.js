@@ -76,9 +76,32 @@ const updateLegacyPlaceholder = (text) => {
   }, 100);
 };
 
-chrome.runtime.onMessageExternal.onMessage((request) => {
+// chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+//   // console.log("chrome.tabs.onUpdated.callback = " + tab.url);
+//   if (changeInfo.status === 'complete') {
+//     if (easyReadTools.isSupportedScheme(tab.url)) {
+//       autoRecordCurrentPage(tab);
+//       setTabScroll(tab);
+//     }
+//   }
+// });
+
+chrome.runtime.onMessage.addListener((request) => {
   if (request.message === "update-placeholder") {
-    console.log(`Salary range: ${request.result}`);
+    console.log(`Salary range x: ${request.result}`);
     request.result ? showSalary(request.result) : showSalary("Error downloading salary.");
   }
 });
+// chrome.runtime.onMessage.addListener( // this is the message listener
+//     function(request, sender, sendResponse) {
+//       if (request.message === "messageSent")
+//         runThisFunction();
+//     }
+// );
+
+// chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+//   (async () => {
+//     await messageHandler(message, sender, sendResponse);
+//   })();
+//   return true;
+// });

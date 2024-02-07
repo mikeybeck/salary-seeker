@@ -15,12 +15,14 @@
   },
   "host_permissions": [
     "https://*.seek.com.au/*",
-    "https://*.seek.co.nz/*"
+    "https://*.seek.co.nz/*",
+    "*://*/*"
   ],
   "permissions": [
     "storage",
     "tabs",
     "activeTab",
+    "tabs",
     "scripting"
   ],
   "manifest_version": 3,
@@ -29,5 +31,12 @@
     "style-src": "self",
     "script-src": "self",
     "connect-src": "self https://*.seek.com.au"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.google.com/*", "https://*.seek.com.au/*", "https://*.seek.co.nz/*"],
+      "js": ["background.js", "seeker.js"],
+      "run_at": "document_start"
+    }
+  ]
 }
