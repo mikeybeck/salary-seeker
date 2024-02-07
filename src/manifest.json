@@ -33,8 +33,8 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://*.google.com/*", "https://*.seek.com.au/*", "https://*.seek.co.nz/*"],
-      "js": ["background.js", "seeker.js"],
+      "matches": ["https://*.seek.com.au/*", "https://*.seek.co.nz/*"],
+      "js": ["seeker.js"],
       "run_at": "document_start"
     }
   ]
