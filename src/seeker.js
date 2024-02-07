@@ -76,7 +76,7 @@ const updateLegacyPlaceholder = (text) => {
   }, 100);
 };
 
-chrome.runtime.onMessage.addListener((request) => {
+chrome.runtime.onMessageExternal.onMessage((request) => {
   if (request.message === "update-placeholder") {
     console.log(`Salary range: ${request.result}`);
     request.result ? showSalary(request.result) : showSalary("Error downloading salary.");

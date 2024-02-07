@@ -193,6 +193,7 @@ const cacheJob = (jobId, title, company, minimum, maximum, range) => {
 const getDifferenceInDays = (first, second) => Math.round(Math.abs((first - second) / 86400000));
 
 const sendMessage = (tabId, result) => {
+  console.log('send message 1');
   chrome.tabs.sendMessage(tabId, {
     message: "update-placeholder",
     result: result
@@ -204,19 +205,26 @@ const handleScriptInjection = (tabId, url) => {
     return;
   }
 
-  chrome.tabs.executeScript(
-    tabId,
-    {
-      code: "var injected = window.seekerInjected; window.seekerInjected = true; injected;"
-    },
-    async response => {
-      // Seeker is already injected.
-      if (response[0]) {
-        checkJobType(tabId, url);
-      } else {
-        chrome.tabs.executeScript(tabId, { file: "seeker.js" }, () => checkJobType(tabId, url));
+  chrome.scripting.executeScript(
+      {
+        target: {tabId: tabId},
+        function: function () {
+          var injected = window.seekerInjected;
+          window.seekerInjected = true;
+          return injected;
+        }
+      },
+      async response => {
+        // Seeker is already injected.
+        if (response[0]) {
+          checkJobType(tabId, url);
+        } else {
+          chrome.scripting.executeScript({
+            target: {tabId: tabId},
+            files: ['seeker.js']
+          });
+        }
       }
-    }
   );
 };
 
@@ -231,16 +239,20 @@ const checkJobType = async (tabId, url) => {
 
       if (isCurrent && createdToday) {
         console.log(`Cached salary range is ${cachedJob.range}`);
+        console.log('send message 2');
         sendMessage(tabId, cachedJob.range);
       } else {
         const range = await calculateRange(url);
         console.log(`Salary range is ${range}`);
+        console.log('send message 3');
         sendMessage(tabId, range);
       }
     } catch (exception) {
+      console.log('send message 4');
       sendMessage(tabId, cachedJob ? cachedJob.range : `Failed to calculate salary range: ${exception.message}`);
     }
   } else if (isExpiredJobUrl(url)) {
+    console.log('send message 5');
     sendMessage(tabId, cachedJob ? cachedJob.range : "Couldn't find a cached salary for this job");
   }
 };
