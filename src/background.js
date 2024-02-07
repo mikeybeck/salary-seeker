@@ -10,7 +10,7 @@ const constants = {
 
 const rangeUrl = new URL(constants.searchUrl);
 
-const calculateRange = async url => {
+const calculateRange = async (url) => {
   const jobId = getJobId(url);
   if (!jobId) {
     return null;
@@ -162,7 +162,6 @@ const getJob = async (jobId, min, max) => {
 const cacheJob = (jobId, title, company, minimum, maximum, range) => {
   try {
     const currentDate = new Date().getTime();
-    const cache = JSON.parse(localStorage.getItem(constants.cacheKey)) || [];
     const job = {
       id: jobId,
       title: title,
@@ -174,17 +173,22 @@ const cacheJob = (jobId, title, company, minimum, maximum, range) => {
       version: constants.version
     };
 
-    const existingJobIndex = cache.findIndex(x => x.id === jobId);
-    if (existingJobIndex !== -1) {
-      cache[existingJobIndex] = job;
-    } else {
-      cache.push(job);
-    }
+    chrome.storage.local.get(constants.cacheKey, result => {
+      let cache = result[constants.cacheKey] || [];
+      const existingJobIndex = cache.findIndex(x => x.id === jobId);
+      if (existingJobIndex !== -1) {
+        cache[existingJobIndex] = job;
+      } else {
+        cache.push(job);
+      }
 
-    // Remove old jobs from cache
-    const updatedCache = cache.filter(x => getDifferenceInDays(currentDate, x.created) <= constants.maxCacheDays);
+      // Remove old jobs from cache
+      const updatedCache = cache.filter(x => getDifferenceInDays(currentDate, x.created) <= constants.maxCacheDays);
 
-    localStorage.setItem(constants.cacheKey, JSON.stringify(updatedCache));
+      let storeObj = {};
+      storeObj[constants.cacheKey] = updatedCache;
+      chrome.storage.local.set(storeObj);
+    });
   } catch (exception) {
     console.log(`Failed to cache job ${jobId}`, exception);
   }
@@ -192,10 +196,10 @@ const cacheJob = (jobId, title, company, minimum, maximum, range) => {
 
 const getDifferenceInDays = (first, second) => Math.round(Math.abs((first - second) / 86400000));
 
-const sendMessage = (tabId, result) => {
+const sendMessage = (tabId, message, result) => {
   chrome.tabs.sendMessage(tabId, {
-    message: "update-placeholder",
-    result: result
+    message: message,
+    result: result,
   });
 };
 
@@ -216,6 +220,7 @@ const handleScriptInjection = (tabId, url) => {
       async response => {
         // Seeker is already injected.
         if (response[0]) {
+          console.log("Seeker already injected.")
           checkJobType(tabId, url);
         } else {
           chrome.scripting.executeScript({
@@ -229,36 +234,41 @@ const handleScriptInjection = (tabId, url) => {
 
 const checkJobType = async (tabId, url) => {
   // Use cache for same day jobs, expired jobs, and exceptions.
-  const cachedJob = findCachedJob(url);
+  findCachedJob(url, async (cachedJob) => {
+    if (isJobUrl(url)) {
+      try {
+        const isCurrent = cachedJob && cachedJob.version === constants.version; // Use cache for jobs created on same version.
+        const createdToday = cachedJob && getDifferenceInDays(new Date().getTime(), cachedJob.created) === 0; // Use cache for jobs viewed on the same day.
 
-  if (isJobUrl(url)) {
-    try {
-      const isCurrent = cachedJob && cachedJob.version === constants.version; // Use cache for jobs created on same version.
-      const createdToday = cachedJob && getDifferenceInDays(new Date().getTime(), cachedJob.created) === 0; // Use cache for jobs viewed on the same day.
-
-      if (isCurrent && createdToday) {
-        console.log(`Cached salary range is ${cachedJob.range}`);
-        sendMessage(tabId, cachedJob.range);
-      } else {
-        const range = await calculateRange(url);
-        console.log(`Salary range is ${range}`);
-        sendMessage(tabId, range);
+        if (isCurrent && createdToday) {
+          console.log(`Cached salary range is ${cachedJob.range}`);
+          sendMessage(tabId, 'update-placeholder', cachedJob.range);
+        } else {
+          const range = await calculateRange(url);
+          console.log(`Salary range is ${range}`);
+          sendMessage(tabId, 'update-placeholder', range);
+        }
+      } catch (exception) {
+        sendMessage(tabId, 'update-placeholder', cachedJob ? cachedJob.range : `Failed to calculate salary range: ${exception.message}`);
       }
-    } catch (exception) {
-      sendMessage(tabId, cachedJob ? cachedJob.range : `Failed to calculate salary range: ${exception.message}`);
+    } else if (isExpiredJobUrl(url)) {
+      sendMessage(tabId, 'update-placeholder', cachedJob ? cachedJob.range : "Couldn't find a cached salary for this job");
     }
-  } else if (isExpiredJobUrl(url)) {
-    sendMessage(tabId, cachedJob ? cachedJob.range : "Couldn't find a cached salary for this job");
-  }
+  });
 };
 
-const findCachedJob = url => {
+const findCachedJob = (url, callback) => {
   try {
-    const jobCache = JSON.parse(localStorage.getItem(constants.cacheKey)) || [];
+    console.log(`FINDING CACHED JOB`);
     const jobId = getJobId(url);
-    return jobCache.find(x => x.id === jobId);
+    chrome.storage.local.get(constants.cacheKey, result => {
+      let jobCache = result[constants.cacheKey] || [];
+      const job = jobCache.find(x => x.id === jobId);
+      callback(job);
+    });
   } catch (exception) {
-    return null;
+    console.error(`Failed to find cached job for url ${url}`, exception);
+    callback(null);
   }
 };
 
